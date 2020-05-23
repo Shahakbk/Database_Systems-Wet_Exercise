@@ -94,7 +94,7 @@ public class Solution {
 
         if (null != connection) {
             try {
-                pstmt = setAddLabParams(connection, query, lab);
+                pstmt = setLabParams(connection, query, lab);
                 pstmt.execute();
             } catch (SQLException e) {
                 handleException(e);
@@ -151,7 +151,7 @@ public class Solution {
 
         if (null != connection) {
             try {
-                pstmt = setAddEmployeeParams(connection, query, employee);
+                pstmt = setEmployeeParams(connection, query, employee);
                 pstmt.execute();
             } catch (SQLException e) {
                 handleException(e);
@@ -207,7 +207,7 @@ public class Solution {
 
         if (null != connection) {
             try {
-                pstmt = setAddVaccineParams(connection, query, vaccine);
+                pstmt = setVaccineParams(connection, query, vaccine);
                 pstmt.execute();
             } catch (SQLException e) {
                 handleException(e);
@@ -251,7 +251,6 @@ public class Solution {
     public static ReturnValue deleteVaccine(Vaccine vaccine) {
         return OK;
     }
-
 
     public static ReturnValue employeeJoinLab(Integer employeeID, Integer labID, Integer salary) {
         return OK;
@@ -313,7 +312,7 @@ public class Solution {
         return new ArrayList<>();
     }
 
-    private static PreparedStatement setAddLabParams(Connection connection, String stmt, Lab lab)
+    private static PreparedStatement setLabParams(Connection connection, String stmt, Lab lab)
             throws SQLException {
         PreparedStatement pstmt = null;
         try {
@@ -329,7 +328,7 @@ public class Solution {
         return pstmt;
     }
 
-    private static PreparedStatement setAddEmployeeParams(Connection connection, String stmt, Employee employee)
+    private static PreparedStatement setEmployeeParams(Connection connection, String stmt, Employee employee)
             throws SQLException {
         PreparedStatement pstmt = null;
         try {
@@ -344,7 +343,7 @@ public class Solution {
         return pstmt;
     }
 
-    private static PreparedStatement setAddVaccineParams(Connection connection, String stmt, Vaccine vaccine)
+    private static PreparedStatement setVaccineParams(Connection connection, String stmt, Vaccine vaccine)
             throws SQLException {
         PreparedStatement pstmt = null;
         try {
