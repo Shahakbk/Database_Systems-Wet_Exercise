@@ -119,7 +119,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             "   HAVING\n" +
             "       COUNT (E.employeeId) > 1";
     private static final String GET_BEST_LAB =
-            "SELECT L.id as bestID\n" +
+            "SELECT L.id AS bestID\n" +
             "FROM EmployedAt AS EA, Labs as L, Employees as E\n" +
             "WHERE\n" +
             "   L.city = E.cityOfBirth AND\n" +
@@ -132,7 +132,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             "   L.id ASC\n" +
             "LIMIT 1";
     private static final String GET_MOST_POPULAR_CITY =
-            "SELECT E.cityOfBirth as mostPopularCity\n" +
+            "SELECT E.cityOfBirth AS mostPopularCity\n" +
             "FROM EmployedAt AS EA, Employees as E\n" +
             "WHERE\n" +
             "   E.id = EA.employeeId\n" +
@@ -142,6 +142,40 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             "   COUNT(E.cityOfBirth) DESC,\n" +
             "   E.cityOfBirth DESC\n" +
             "LIMIT 1";
+    private static final String GET_POPULAR_LABS =
+            "SELECT labId AS mostPopularLabs\n" +
+            "FROM PopularLabs\n" +
+            "WHERE\n" +
+            "   labId IN \n" +
+            "   (\n" +
+            "       SELECT labId\n" +
+            "       FROM ProducedBy\n" +
+            "   )\n" +
+            "ORDER BY\n" +
+            "   labId ASC\n" +
+            "LIMIT 3";
+    private static final String GET_MOST_RATED_VACCINES =
+            "SELECT id AS mostRatedVaccines\n" +
+            "FROM Vaccines\n" +
+            "ORDER BY\n" +
+            "   (productivity + unitsInStock - cost) DESC,\n" +
+            "   id ASC,\n" +
+            "LIMIT 10";
+    private static final String GET_CLOSE_EMPLOYEES =
+            "SELECT E.id AS closeEmployees\n" +
+            "FROM Employees AS E\n" +
+            "WHERE\n" +
+            "   ? != E.id AND \n" +
+            "   ? IN\n" +
+            "       (SELECT id\n" +
+            "       FROM Employees)\n" +
+            "   AND\n" +
+            "       (SELECT COUNT(EQ.labId) FROM EmployedAt AS EQ WHERE EQ.employeeId = ?)\n" +
+            "       <= 2 * (SELECT COUNT(NEQ.labId) FROM EmployedAt AS NEQ WHERE NEQ.employeeId = E.id AND\n" +
+            "           NEQ.labId IN (SELECT labId FROM EmployedAt AS W2 WHERE W2.employeeId = ?))\n" +
+            "ORDER BY\n" +
+            "   E.id ASC\n" +
+            "LIMIT 10";
 
     public static void createTables() {
         //TODO add tables
@@ -659,15 +693,79 @@ private static final String CREATE_VIEW_POPULAR_LABS =
     }
 
     public static ArrayList<Integer> getPopularLabs() {
-        return new ArrayList<>();
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        ArrayList<Integer> res = new ArrayList<Integer>();
+
+        if (null == connection) return null;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_POPULAR_LABS);
+            resultSet = pstmt.executeQuery();
+            while (resultSet.next()) {
+                res.add(resultSet.getInt("mostPopularLabs"));
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static ArrayList<Integer> getMostRatedVaccines() {
-        return new ArrayList<>();
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        ArrayList<Integer> res = new ArrayList<Integer>();
+
+        if (null == connection) return null;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_MOST_RATED_VACCINES);
+            resultSet = pstmt.executeQuery();
+            while (resultSet.next()) {
+                res.add(resultSet.getInt("mostRatedVaccines"));
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static ArrayList<Integer> getCloseEmployees(Integer employeeID) {
-        return new ArrayList<>();
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        ArrayList<Integer> res = new ArrayList<Integer>();
+
+        if (null == connection) return null;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_CLOSE_EMPLOYEES);
+            pstmt.setInt(1, employeeID);
+            pstmt.setInt(2, employeeID);
+            pstmt.setInt(3, employeeID);
+            pstmt.setInt(4, employeeID);
+            resultSet = pstmt.executeQuery();
+            while (resultSet.next()) {
+                res.add(resultSet.getInt("closeEmployees"));
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     private static PreparedStatement setLabParams(Connection connection, String stmt, Lab lab)
