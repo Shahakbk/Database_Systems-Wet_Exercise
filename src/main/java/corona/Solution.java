@@ -30,31 +30,129 @@ public class Solution {
             ")";
     private static final String CREATE_TABLE_EMPLOYEES =
             "CREATE TABLE Employees\n" +
-                    "(\n" +
-                    "    id integer NOT NULL,\n" +
-                    "    name text NOT NULL,\n" +
-                    "    cityOfBirth text NOT NULL,\n" +
-                    "    PRIMARY KEY (id),\n" +
-                    "    CHECK (id > 0)\n" +
-                    ")";
+            "(\n" +
+            "    id integer NOT NULL,\n" +
+            "    name text NOT NULL,\n" +
+            "    cityOfBirth text NOT NULL,\n" +
+            "    PRIMARY KEY (id),\n" +
+            "    CHECK (id > 0)\n" +
+            ")";
     private static final String CREATE_TABLE_VACCINES =
             "CREATE TABLE Vaccines\n" +
-                    "(\n" +
-                    "    id integer NOT NULL,\n" +
-                    "    name text NOT NULL,\n" +
-                    "    cost integer NOT NULL,\n" +
-                    "    unitsInStock integer NOT NULL,\n" +
-                    "    productivity integer NOT NULL,\n" +
-                    "    PRIMARY KEY (id),\n" +
-                    "    CHECK (id > 0),\n" +
-                    "    CHECK (cost >= 0),\n" +
-                    "    CHECK (unitsInStock >= 0),\n" +
-                    "    CHECK (productivity >= 0)\n" +
-                    ")";
+            "(\n" +
+            "    id integer NOT NULL,\n" +
+            "    name text NOT NULL,\n" +
+            "    cost integer NOT NULL,\n" +
+            "    unitsInStock integer NOT NULL,\n" +
+            "    productivity integer NOT NULL,\n" +
+            "    revenue integer NOT NULL,\n" +
+            "    PRIMARY KEY (id),\n" +
+            "    CHECK (id > 0),\n" +
+            "    CHECK (cost >= 0),\n" +
+            "    CHECK (unitsInStock >= 0),\n" +
+            "    CHECK (productivity >= 0),\n" +
+            "    CHECK (revenue >= 0)\n" +
+            ")";
+    private static final String CREATE_TABLE_EMPLOYED_AT =
+            "CREATE TABLE EmployedAt\n" +
+            "(\n" +
+            "   employeeId integer NOT NULL,\n" +
+            "   labId integer NOT NULL,\n" +
+            "   wage integer NOT NULL,\n" +
+            "   FOREIGN KEY (employeeId) REFERENCES Employees(id) ON DELETE CASCADE,\n" +
+            "   FOREIGN KEY (labId) REFERENCES Labs(id) ON DELETE CASCADE,\n" +
+            "   PRIMARY KEY (labId, employeeId),\n" +
+            "   CHECK (wage >= 0)" +
+            ")";
+    private static final String CREATE_TABLE_PRODUCED_BY =
+            "CREATE TABLE ProducedBy\n" +
+            "(\n" +
+            "   labId integer NOT NULL,\n" +
+            "   vaccineId integer NOT NULL,\n" +
+            "   FOREIGN KEY (labId) REFERENCES Labs(id) ON DELETE CASCADE,\n" +
+            "   FOREIGN KEY (vaccineId) REFERENCES Vaccines(id) ON DELETE CASCADE,\n" +
+            "   PRIMARY KEY (labId, employeeId)\n" +
+            ")";
+private static final String CREATE_VIEW_POPULAR_LABS =
+            "CREATE VIEW PopularLabs AS\n" +
+            "(\n" +
+            "   SELECT L.ID\n" +
+            "   FROM Labs\n" +
+            "   WHERE id NOT IN\n" +
+            "       (\n" +
+            "           SELECT L.id\n" +
+            "           FROM Vaccines AS V, ProducedBy as P, Labs as L\n" +
+            "           WHERE V.id = P.vaccineId AND P.labId = L.id AND \n" +
+            "               V.id = P.vaccineId AND P.labId = L.id AND \n" +
+            "               P.labId = L.id AND \n" +
+            "               V.productivity <= 20\n" +
+            "       )\n" +
+            ")";
+    private static final String UPDATE_TABLE_VACCINE_SOLD =
+            "UPDATE Vaccines\n" +
+            "(\n" +
+            "   SET\n" +
+            "       cost = cost * 2,\n" +
+            "       productivity = LEAST (100, productivity + 15),\n" + // TODO make sure
+            "       unitsInStock = unitsInStock - ?,\n" +
+            "       revenue = revenue + cost * ?\n" +
+            "   WHERE id = ?,\n" +
+            ")";
+    private static final String UPDATE_TABLE_VACCINE_PRODUCED =
+            "UPDATE Vaccines\n" +
+            "(\n" +
+            "   SET\n" +
+            "       cost = cost / 2,\n" +
+            "       productivity = GREATEST (0, productivity - 15),\n" + // TODO make sure
+            "       unitsInStock = unitsInStock + ?\n" +
+            "   WHERE id = ?,\n" +
+            ")";
+    private static final String GET_TOTAL_WAGES =
+            "SELECT SUM (wage) AS totalWages\n" +
+            "FROM EmployedAt AS E\n" +
+            "WHERE\n" +
+            "   E.labId =\n" +
+            "       (\n" +
+            "           SELECT id FROM Labs\n" +
+            "           WHERE id = ? AND isActive = true\n" +
+            "       )\n" +
+            "   HAVING\n" +
+            "       COUNT (E.employeeId) > 1";
+    private static final String GET_BEST_LAB =
+            "SELECT L.id as bestID\n" +
+            "FROM EmployedAt AS EA, Labs as L, Employees as E\n" +
+            "WHERE\n" +
+            "   L.city = E.cityOfBirth AND\n" +
+            "   L.id = EA.labId AND\n" +
+            "   E.id = EA.employeeId\n" +
+            "GROUP BY\n" +
+            "   L.id\n" +
+            "ORDER BY\n" +
+            "   COUNT(L.id) DESC,\n" +
+            "   L.id ASC\n" +
+            "LIMIT 1";
+    private static final String GET_MOST_POPULAR_CITY =
+            "SELECT E.cityOfBirth as mostPopularCity\n" +
+            "FROM EmployedAt AS EA, Employees as E\n" +
+            "WHERE\n" +
+            "   E.id = EA.employeeId\n" +
+            "GROUP BY\n" +
+            "   E.cityOfBirth\n" +
+            "ORDER BY\n" +
+            "   COUNT(E.cityOfBirth) DESC,\n" +
+            "   E.cityOfBirth DESC\n" +
+            "LIMIT 1";
 
     public static void createTables() {
         //TODO add tables
-        List<String> queries = Arrays.asList(CREATE_TABLE_LABS, CREATE_TABLE_EMPLOYEES, CREATE_TABLE_VACCINES);
+        List<String> queries = Arrays.asList(
+                CREATE_TABLE_LABS,
+                CREATE_TABLE_EMPLOYEES,
+                CREATE_TABLE_VACCINES,
+                CREATE_TABLE_EMPLOYED_AT,
+                CREATE_TABLE_PRODUCED_BY,
+                CREATE_VIEW_POPULAR_LABS
+        );
         createQueriesAndConnection(queries);
     }
 
@@ -64,7 +162,14 @@ public class Solution {
     public static void clearTables() {
         // TODO add tables
 
-        List<String> tables = Arrays.asList("LABS", "EMPLOYEES", "VACCINES");
+        List<String> tables = Arrays.asList(
+                "Labs",
+                "Employees",
+                "Vaccines",
+                "EmployedAt",
+                "ProducedBy",
+                "PopularLabs"
+        );
         tables = tables.stream().map(s -> String.format("DELETE FROM %s", s)).collect(Collectors.toList());
         createQueriesAndConnection(tables);
     }
@@ -76,7 +181,14 @@ public class Solution {
         // TODO add drop to views
         // TODO CASCADE?
 
-        List<String> tables = Arrays.asList("LABS", "EMPLOYEES", "VACCINES");
+        List<String> tables = Arrays.asList(
+                "Labs",
+                "Employees",
+                "Vaccines",
+                "EmployedAt",
+                "ProducedBy",
+                "PopularLabs"
+        );
         tables = tables.stream().map(s -> String.format("DROP TABLE IF EXISTS %s", s)).collect(Collectors.toList());
         createQueriesAndConnection(tables);
     }
@@ -87,8 +199,9 @@ public class Solution {
         }
 
         ReturnValue retVal = OK;
-        String query = "INSERT INTO Labs \n" +
-                        "VALUES (?, ?, ?, ?)";
+        String query =
+                "INSERT INTO Labs \n" +
+                "VALUES (?, ?, ?, ?)";
         PreparedStatement pstmt = null;
         Connection connection = DBConnector.getConnection();
 
@@ -144,7 +257,8 @@ public class Solution {
         }
 
         ReturnValue retVal = OK;
-        String query = "INSERT INTO Employees \n" +
+        String query =
+                "INSERT INTO Employees \n" +
                 "VALUES (?, ?, ?)";
         PreparedStatement pstmt = null;
         Connection connection = DBConnector.getConnection();
@@ -200,8 +314,9 @@ public class Solution {
         }
 
         ReturnValue retVal = OK;
-        String query = "INSERT INTO Vaccines \n" +
-                "VALUES (?, ?, ?, ?, ?)"; //TODO update if vaccine is updated
+        String query =
+                "INSERT INTO Vaccines \n" +
+                "VALUES (?, ?, ?, ?, ?, 0)"; //TODO update if vaccine is updated
         PreparedStatement pstmt = null;
         Connection connection = DBConnector.getConnection();
 
@@ -249,55 +364,298 @@ public class Solution {
     }
 
     public static ReturnValue deleteVaccine(Vaccine vaccine) {
-        return OK;
+        return removeEntryFromTable("Vaccines", vaccine.getId());
     }
 
     public static ReturnValue employeeJoinLab(Integer employeeID, Integer labID, Integer salary) {
-        return OK;
+        if (null == labID || null == employeeID || null == salary)
+            return BAD_PARAMS;
+        //TODO deal with salary < 0
+
+        ReturnValue retVal = OK;
+        String query =
+                "INSERT INTO EmployedAt \n" +
+                "VALUES (?, ?, ?)";
+        PreparedStatement pstmt = null;
+        Connection connection = DBConnector.getConnection();
+
+        if (null != connection) {
+            try {
+                pstmt = setEmployedAtParams(connection, query, labID, employeeID, salary);
+                pstmt.execute();
+            } catch (SQLException e) {
+                handleException(e);
+                retVal = getError(e);
+            } finally {
+                closeAll(connection, pstmt); //TODO necessary?
+            }
+        }
+
+        return retVal;
+
     }
 
     public static ReturnValue employeeLeftLab(Integer labID, Integer employeeID) {
-        return OK;
+        return removeEntryFromJoinedTable("EmployedAt", "employeeId", "labId", employeeID, labID);
     }
 
     public static ReturnValue labProduceVaccine(Integer vaccineID, Integer labID) {
-        return OK;
+        if (null == vaccineID || null == labID)
+            return BAD_PARAMS;
+
+        ReturnValue retVal = OK;
+        String query =
+                "INSERT INTO ProducedBy \n" +
+                "VALUES (?, ?)";
+        PreparedStatement pstmt = null;
+        Connection connection = DBConnector.getConnection();
+
+        if (null != connection) {
+            try {
+                pstmt = setProducedByParams(connection, query, labID, vaccineID);
+                pstmt.execute();
+            } catch (SQLException e) {
+                handleException(e);
+                retVal = getError(e);
+            } finally {
+                closeAll(connection, pstmt); //TODO necessary?
+            }
+        }
+
+        return retVal;
+
     }
 
     public static ReturnValue labStoppedProducingVaccine(Integer labID, Integer vaccineID) {
-        return OK;
+        return removeEntryFromJoinedTable("ProducedBy", "labId", "vaccineId", labID, vaccineID);
     }
 
     public static ReturnValue vaccineSold(Integer vaccineID, Integer amount) {
-        return OK;
+        Connection connection = DBConnector.getConnection();
+        ReturnValue retVal = null;
+        if (null == vaccineID || null == amount) return BAD_PARAMS;
+        if (null == connection) return ERROR;
+        // TODO check amount >= 0
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(UPDATE_TABLE_VACCINE_SOLD);
+            pstmt.setInt(1, amount);
+            pstmt.setInt(2, amount);
+            pstmt.setInt(3, vaccineID);
+
+            int updated = pstmt.executeUpdate();
+            if (0 == updated) {
+                retVal = NOT_EXISTS;
+            } else {
+                retVal = OK;
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            retVal = getError(e);
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return retVal;
     }
 
     public static ReturnValue vaccineProduced(Integer vaccineID, Integer amount) {
-        return OK;
+        Connection connection = DBConnector.getConnection();
+        ReturnValue retVal = null;
+        if (null == vaccineID || null == amount) return BAD_PARAMS;
+        if (null == connection) return ERROR;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(UPDATE_TABLE_VACCINE_PRODUCED);
+            pstmt.setInt(1, amount);
+            pstmt.setInt(2, vaccineID);
+
+            int updated = pstmt.executeUpdate();
+            if (0 == updated) {
+                retVal = NOT_EXISTS;
+            } else {
+                retVal = OK;
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            retVal = getError(e);
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return retVal;
     }
 
     public static Boolean isLabPopular(Integer labID) {
-        return true;
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        Boolean res = true;
+
+        if (null == labID || null == connection) return false;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "SELECT id\n" +
+                    "FROM PopularLabs\n" +
+                    "WHERE id = ?"
+            );
+            pstmt.setInt(1, labID);
+
+            resultSet = pstmt.executeQuery();
+            if (!resultSet.next()) {
+                res = false;
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = false;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static Integer getIncomeFromVaccine(Integer vaccineID) {
-        return 0;
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        int res = 0;
+
+        if (null == vaccineID || null == connection) return 0;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "SELECT revenue\n" +
+                        "FROM Vaccines\n" +
+                        "WHERE id = ?"
+            );
+            pstmt.setInt(1, vaccineID);
+
+            resultSet = pstmt.executeQuery();
+            if (resultSet.next()) {
+                res = resultSet.getInt("revenue");
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = 0;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static Integer getTotalNumberOfWorkingVaccines() {
-        return 0;
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        int res = 0;
+
+        if (null == connection) return 0;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "SELECT SUM (unitsInStock) AS numberOfWorkingVaccines\n" +
+                        "FROM Vaccines\n" +
+                        "WHERE productivity > 20"
+            );
+
+            resultSet = pstmt.executeQuery();
+            if (resultSet.next()) {
+                res = resultSet.getInt("numberOfWorkingVaccines");
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = 0;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static Integer getTotalWages(Integer labID) {
-        return 0;
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        int res = 0;
+
+        if (null == connection || null == labID) return 0;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_TOTAL_WAGES);
+            pstmt.setInt(1, labID);
+            resultSet = pstmt.executeQuery();
+            if (resultSet.next()) {
+                res = resultSet.getInt("totalWages");
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = 0;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static Integer getBestLab() {
-        return 0;
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        int res = 0;
+
+        if (null == connection) return 0;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_BEST_LAB);
+            resultSet = pstmt.executeQuery();
+            if (resultSet.next()) {
+                res = resultSet.getInt("bestID");
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = 0;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static String getMostPopularCity() {
-        return "";
+        Connection connection = DBConnector.getConnection();
+        ResultSet resultSet;
+        String res = null;
+
+        if (null == connection) return null;
+
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(GET_MOST_POPULAR_CITY);
+            resultSet = pstmt.executeQuery();
+            if (resultSet.next()) {
+                res = resultSet.getString("mostPopularCity");
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            res = null;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return res;
     }
 
     public static ArrayList<Integer> getPopularLabs() {
@@ -354,6 +712,39 @@ public class Solution {
             pstmt.setInt(3, vaccine.getCost());
             pstmt.setInt(4, vaccine.getUnits());
             pstmt.setInt(5, vaccine.getProductivity());
+
+        } catch (Exception e) {
+            throw e;
+        }
+
+        return pstmt;
+    }
+
+    private static PreparedStatement setEmployedAtParams(Connection connection, String stmt, Integer labID,
+                                                         Integer employeeID, Integer wage)
+            throws SQLException {
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(stmt);
+            pstmt.setInt(1, employeeID);
+            pstmt.setInt(2, labID);
+            pstmt.setInt(3, wage);
+
+        } catch (Exception e) {
+            throw e;
+        }
+
+        return pstmt;
+    }
+
+    private static PreparedStatement setProducedByParams(Connection connection, String stmt, Integer labID,
+                                                         Integer vaccineID)
+            throws SQLException {
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(stmt);
+            pstmt.setInt(1, labID);
+            pstmt.setInt(2, vaccineID);
 
         } catch (Exception e) {
             throw e;
@@ -512,6 +903,35 @@ public class Solution {
         try {
             pstmt = connection.prepareStatement(String.format("DELETE FROM %s WHERE id = ?", table));
             pstmt.setInt(1, id);
+            int deleted = pstmt.executeUpdate();
+            if (0 == deleted) {
+                retVal = NOT_EXISTS;
+            } else {
+                retVal = OK;
+            }
+
+        } catch (SQLException e) {
+            handleException(e);
+            retVal = ERROR;
+        } finally {
+            closeAll(connection, pstmt);
+        }
+
+        return retVal;
+    }
+
+    private static ReturnValue removeEntryFromJoinedTable(String table, String key1, String key2, int id1, int id2) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement pstmt = null;
+        ReturnValue retVal = null;
+        if (null == connection) {
+            return ERROR;
+        }
+
+        try {
+            pstmt = connection.prepareStatement(String.format("DELETE FROM %s WHERE %s = ? AND %s = ?", table, key1, key2));
+            pstmt.setInt(1, id1);
+            pstmt.setInt(2, id2);
             int deleted = pstmt.executeUpdate();
             if (0 == deleted) {
                 retVal = NOT_EXISTS;
