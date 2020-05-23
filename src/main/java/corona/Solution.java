@@ -71,42 +71,35 @@ public class Solution {
             "   vaccineId integer NOT NULL,\n" +
             "   FOREIGN KEY (labId) REFERENCES Labs(id) ON DELETE CASCADE,\n" +
             "   FOREIGN KEY (vaccineId) REFERENCES Vaccines(id) ON DELETE CASCADE,\n" +
-            "   PRIMARY KEY (labId, employeeId)\n" +
+            "   PRIMARY KEY (labId, vaccineId)\n" +
             ")";
-private static final String CREATE_VIEW_POPULAR_LABS =
+    private static final String CREATE_VIEW_POPULAR_LABS =
             "CREATE VIEW PopularLabs AS\n" +
-            "(\n" +
-            "   SELECT L.ID\n" +
+            "   SELECT Labs.id as id\n" +
             "   FROM Labs\n" +
             "   WHERE id NOT IN\n" +
             "       (\n" +
             "           SELECT L.id\n" +
             "           FROM Vaccines AS V, ProducedBy as P, Labs as L\n" +
-            "           WHERE V.id = P.vaccineId AND P.labId = L.id AND \n" +
-            "               V.id = P.vaccineId AND P.labId = L.id AND \n" +
+            "           WHERE V.id = P.vaccineId AND\n" +
             "               P.labId = L.id AND \n" +
             "               V.productivity <= 20\n" +
-            "       )\n" +
-            ")";
+            "       )";
     private static final String UPDATE_TABLE_VACCINE_SOLD =
             "UPDATE Vaccines\n" +
-            "(\n" +
             "   SET\n" +
             "       cost = cost * 2,\n" +
-            "       productivity = LEAST (100, productivity + 15),\n" + // TODO make sure
+            "       productivity = LEAST (100, productivity + 15),\n" +
             "       unitsInStock = unitsInStock - ?,\n" +
             "       revenue = revenue + cost * ?\n" +
-            "   WHERE id = ?,\n" +
-            ")";
+            "   WHERE id = ?";
     private static final String UPDATE_TABLE_VACCINE_PRODUCED =
             "UPDATE Vaccines\n" +
-            "(\n" +
             "   SET\n" +
             "       cost = cost / 2,\n" +
-            "       productivity = GREATEST (0, productivity - 15),\n" + // TODO make sure
+            "       productivity = GREATEST (0, productivity - 15),\n" +
             "       unitsInStock = unitsInStock + ?\n" +
-            "   WHERE id = ?,\n" +
-            ")";
+            "   WHERE id = ?";
     private static final String GET_TOTAL_WAGES =
             "SELECT SUM (wage) AS totalWages\n" +
             "FROM EmployedAt AS E\n" +
@@ -143,17 +136,25 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             "   E.cityOfBirth DESC\n" +
             "LIMIT 1";
     private static final String GET_POPULAR_LABS =
-            "SELECT labId AS mostPopularLabs\n" +
+            "SELECT id as mostPopularLabs\n" +
             "FROM PopularLabs\n" +
             "WHERE\n" +
-            "   labId IN \n" +
+            "   id IN \n" +
             "   (\n" +
             "       SELECT labId\n" +
             "       FROM ProducedBy\n" +
             "   )\n" +
             "ORDER BY\n" +
-            "   labId ASC\n" +
+            "   id ASC\n" +
             "LIMIT 3";
+/*    private static final String GET_POPULAR_LABS =
+            "SELECT labId FROM PopularLabs\n" +
+            "WHERE labId IN" +
+            "       SELECT labId\n" +
+            "       FROM ProducedBy)\n" +
+            "ORDER BY\n" +
+            "   labId ASC\n" +
+            "LIMIT 3";*/
     private static final String GET_MOST_RATED_VACCINES =
             "SELECT id AS mostRatedVaccines\n" +
             "FROM Vaccines\n" +
@@ -178,7 +179,6 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             "LIMIT 10";
 
     public static void createTables() {
-        //TODO add tables
         List<String> queries = Arrays.asList(
                 CREATE_TABLE_LABS,
                 CREATE_TABLE_EMPLOYEES,
@@ -194,8 +194,6 @@ private static final String CREATE_VIEW_POPULAR_LABS =
      * Clears all of the tables in the DB.
      */
     public static void clearTables() {
-        // TODO add tables
-
         List<String> tables = Arrays.asList(
                 "Labs",
                 "Employees",
@@ -212,9 +210,6 @@ private static final String CREATE_VIEW_POPULAR_LABS =
      * Creates the queries to drop the tables, opens a connection and drops them.
      */
     public static void dropTables() {
-        // TODO add drop to views
-        // TODO CASCADE?
-
         List<String> tables = Arrays.asList(
                 "Labs",
                 "Employees",
@@ -223,8 +218,9 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 "ProducedBy",
                 "PopularLabs"
         );
-        tables = tables.stream().map(s -> String.format("DROP TABLE IF EXISTS %s", s)).collect(Collectors.toList());
+        tables = tables.stream().map(s -> String.format("DROP TABLE IF EXISTS %s CASCADE", s)).collect(Collectors.toList());
         createQueriesAndConnection(tables);
+        createQueryAndConnection("DROP VIEW IF EXISTS PopularLabs");
     }
 
     public static ReturnValue addLab(Lab lab) {
@@ -247,7 +243,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 handleException(e);
                 retVal = getError(e);
             } finally {
-                closeAll(connection, pstmt); //TODO necessary?
+                closeAll(connection, pstmt);
             }
         }
 
@@ -256,7 +252,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Lab getLabProfile(Integer labID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet res = null;
+        ResultSet resultSet = null;
         if (null == connection || null == labID) return Lab.badLab();
 
         PreparedStatement pstmt = null;
@@ -264,18 +260,21 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         try {
             pstmt = connection.prepareStatement("SELECT * FROM Labs WHERE id = ?");
             pstmt.setInt(1, labID);
-            res = pstmt.executeQuery();
+            resultSet = pstmt.executeQuery();
+            if (!resultSet.next()) {
+                return Lab.badLab();
+            }
             lab.setId(labID);
-            lab.setName(res.getString("name"));
-            lab.setCity(res.getString("city"));
-            lab.setIsActive(res.getBoolean("isActive"));
+            lab.setName(resultSet.getString("name"));
+            lab.setCity(resultSet.getString("city"));
+            lab.setIsActive(resultSet.getBoolean("isActive"));
             return lab;
 
         } catch (SQLException e) {
             handleException(e);
             lab = Lab.badLab();
         } finally {
-            closeAll(connection, pstmt, res);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return lab;
@@ -305,7 +304,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 handleException(e);
                 retVal = getError(e);
             } finally {
-                closeAll(connection, pstmt); //TODO necessary?
+                closeAll(connection, pstmt);
             }
         }
 
@@ -314,7 +313,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Employee getEmployeeProfile(Integer employeeID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet res = null;
+        ResultSet resultSet = null;
         if (null == connection || null == employeeID) return Employee.badEmployee();
 
         PreparedStatement pstmt = null;
@@ -322,17 +321,20 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         try {
             pstmt = connection.prepareStatement("SELECT * FROM Employees WHERE id = ?");
             pstmt.setInt(1, employeeID);
-            res = pstmt.executeQuery();
+            resultSet = pstmt.executeQuery();
+            if (!resultSet.next()) {
+                return Employee.badEmployee();
+            }
             employee.setId(employeeID);
-            employee.setName(res.getString("name"));
-            employee.setCity(res.getString("cityOfBirth"));
+            employee.setName(resultSet.getString("name"));
+            employee.setCity(resultSet.getString("cityOfBirth"));
             return employee;
 
         } catch (SQLException e) {
             handleException(e);
             employee = Employee.badEmployee();
         } finally {
-            closeAll(connection, pstmt, res);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return employee;
@@ -350,7 +352,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         ReturnValue retVal = OK;
         String query =
                 "INSERT INTO Vaccines \n" +
-                "VALUES (?, ?, ?, ?, ?, 0)"; //TODO update if vaccine is updated
+                "VALUES (?, ?, ?, ?, ?, 0)";
         PreparedStatement pstmt = null;
         Connection connection = DBConnector.getConnection();
 
@@ -362,7 +364,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 handleException(e);
                 retVal = getError(e);
             } finally {
-                closeAll(connection, pstmt); //TODO necessary?
+                closeAll(connection, pstmt);
             }
         }
 
@@ -371,7 +373,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Vaccine getVaccineProfile(Integer vaccineID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet res = null;
+        ResultSet resultSet = null;
         if (null == connection || null == vaccineID) return Vaccine.badVaccine();
 
         PreparedStatement pstmt = null;
@@ -379,19 +381,22 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         try {
             pstmt = connection.prepareStatement("SELECT * FROM Vaccines WHERE id = ?");
             pstmt.setInt(1, vaccineID);
-            res = pstmt.executeQuery();
+            resultSet = pstmt.executeQuery();
+            if (!resultSet.next()) {
+                return Vaccine.badVaccine();
+            }
             vaccine.setId(vaccineID);
-            vaccine.setName(res.getString("name"));
-            vaccine.setCost(res.getInt("cost"));
-            vaccine.setUnits(res.getInt("unitsInStock"));
-            vaccine.setProductivity(res.getInt("productivity"));
+            vaccine.setName(resultSet.getString("name"));
+            vaccine.setCost(resultSet.getInt("cost"));
+            vaccine.setUnits(resultSet.getInt("unitsInStock"));
+            vaccine.setProductivity(resultSet.getInt("productivity"));
             return vaccine;
 
         } catch (SQLException e) {
             handleException(e);
             vaccine = Vaccine.badVaccine();
         } finally {
-            closeAll(connection, pstmt, res);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return vaccine;
@@ -421,7 +426,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 handleException(e);
                 retVal = getError(e);
             } finally {
-                closeAll(connection, pstmt); //TODO necessary?
+                closeAll(connection, pstmt);
             }
         }
 
@@ -503,6 +508,10 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
         PreparedStatement pstmt = null;
         try {
+            pstmt = connection.prepareStatement("SELECT NULL WHERE ? >= 0");
+            pstmt.setInt(1, amount);
+            if (!pstmt.executeQuery().next()) return BAD_PARAMS;
+
             pstmt = connection.prepareStatement(UPDATE_TABLE_VACCINE_PRODUCED);
             pstmt.setInt(1, amount);
             pstmt.setInt(2, vaccineID);
@@ -526,7 +535,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Boolean isLabPopular(Integer labID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         Boolean res = true;
 
         if (null == labID || null == connection) return false;
@@ -549,7 +558,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             handleException(e);
             res = false;
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -557,7 +566,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Integer getIncomeFromVaccine(Integer vaccineID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         int res = 0;
 
         if (null == vaccineID || null == connection) return 0;
@@ -580,7 +589,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             handleException(e);
             res = 0;
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -588,7 +597,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Integer getTotalNumberOfWorkingVaccines() {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         int res = 0;
 
         if (null == connection) return 0;
@@ -610,7 +619,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             handleException(e);
             res = 0;
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -618,7 +627,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Integer getTotalWages(Integer labID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         int res = 0;
 
         if (null == connection || null == labID) return 0;
@@ -636,7 +645,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             handleException(e);
             res = 0;
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -644,7 +653,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static Integer getBestLab() {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         int res = 0;
 
         if (null == connection) return 0;
@@ -661,7 +670,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
             handleException(e);
             res = 0;
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -669,10 +678,10 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static String getMostPopularCity() {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
-        String res = null;
+        ResultSet resultSet = null;
+        String res = "";
 
-        if (null == connection) return null;
+        if (null == connection) return "";
 
         PreparedStatement pstmt = null;
         try {
@@ -684,9 +693,9 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
         } catch (SQLException e) {
             handleException(e);
-            res = null;
+            res = "";
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -694,7 +703,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static ArrayList<Integer> getPopularLabs() {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         ArrayList<Integer> res = new ArrayList<Integer>();
 
         if (null == connection) return null;
@@ -710,7 +719,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         } catch (SQLException e) {
             handleException(e);
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -718,7 +727,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static ArrayList<Integer> getMostRatedVaccines() {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         ArrayList<Integer> res = new ArrayList<Integer>();
 
         if (null == connection) return null;
@@ -734,7 +743,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         } catch (SQLException e) {
             handleException(e);
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -742,7 +751,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
 
     public static ArrayList<Integer> getCloseEmployees(Integer employeeID) {
         Connection connection = DBConnector.getConnection();
-        ResultSet resultSet;
+        ResultSet resultSet = null;
         ArrayList<Integer> res = new ArrayList<Integer>();
 
         if (null == connection) return null;
@@ -762,7 +771,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         } catch (SQLException e) {
             handleException(e);
         } finally {
-            closeAll(connection, pstmt);
+            closeAll(connection, pstmt, resultSet);
         }
 
         return res;
@@ -872,7 +881,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
     }
 
     private static void handleException(SQLException e) {
-        // TODO make sure
+        // TODO comment out
         e.printStackTrace();
     }
 
@@ -951,7 +960,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
                 pstmt.execute();
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            handleException(e);
         } finally {
             closeQuery(pstmt);
         }
@@ -986,7 +995,7 @@ private static final String CREATE_VIEW_POPULAR_LABS =
         // TODO add drop to views
         // TODO CASCADE?
 
-        String stmt = String.format("DROP TABLE IF EXISTS %s", table);
+        String stmt = String.format("DROP TABLE IF EXISTS %s CASCADE", table);
         createQueryAndConnection(stmt);
     }
 
