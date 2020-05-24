@@ -147,20 +147,12 @@ public class Solution {
             "ORDER BY\n" +
             "   id ASC\n" +
             "LIMIT 3";
-/*    private static final String GET_POPULAR_LABS =
-            "SELECT labId FROM PopularLabs\n" +
-            "WHERE labId IN" +
-            "       SELECT labId\n" +
-            "       FROM ProducedBy)\n" +
-            "ORDER BY\n" +
-            "   labId ASC\n" +
-            "LIMIT 3";*/
     private static final String GET_MOST_RATED_VACCINES =
             "SELECT id AS mostRatedVaccines\n" +
             "FROM Vaccines\n" +
             "ORDER BY\n" +
             "   (productivity + unitsInStock - cost) DESC,\n" +
-            "   id ASC,\n" +
+            "   id ASC\n" +
             "LIMIT 10";
     private static final String GET_CLOSE_EMPLOYEES =
             "SELECT E.id AS closeEmployees\n" +
@@ -173,7 +165,7 @@ public class Solution {
             "   AND\n" +
             "       (SELECT COUNT(EQ.labId) FROM EmployedAt AS EQ WHERE EQ.employeeId = ?)\n" +
             "       <= 2 * (SELECT COUNT(NEQ.labId) FROM EmployedAt AS NEQ WHERE NEQ.employeeId = E.id AND\n" +
-            "           NEQ.labId IN (SELECT labId FROM EmployedAt AS W2 WHERE W2.employeeId = ?))\n" +
+            "           NEQ.labId IN (SELECT labId FROM EmployedAt AS EA WHERE EA.employeeId = ?))\n" +
             "ORDER BY\n" +
             "   E.id ASC\n" +
             "LIMIT 10";
@@ -409,7 +401,6 @@ public class Solution {
     public static ReturnValue employeeJoinLab(Integer employeeID, Integer labID, Integer salary) {
         if (null == labID || null == employeeID || null == salary)
             return BAD_PARAMS;
-        //TODO deal with salary < 0
 
         ReturnValue retVal = OK;
         String query =
@@ -457,7 +448,7 @@ public class Solution {
                 handleException(e);
                 retVal = getError(e);
             } finally {
-                closeAll(connection, pstmt); //TODO necessary?
+                closeAll(connection, pstmt);
             }
         }
 
@@ -474,7 +465,6 @@ public class Solution {
         ReturnValue retVal = null;
         if (null == vaccineID || null == amount) return BAD_PARAMS;
         if (null == connection) return ERROR;
-        // TODO check amount >= 0
 
         PreparedStatement pstmt = null;
         try {
@@ -812,7 +802,6 @@ public class Solution {
             throws SQLException {
         PreparedStatement pstmt = null;
         try {
-            //TODO might be updated
             pstmt = connection.prepareStatement(stmt);
             pstmt.setInt(1, vaccine.getId());
             pstmt.setString(2, vaccine.getName());
@@ -862,7 +851,7 @@ public class Solution {
 
     private static ReturnValue getError(SQLException e) {
         switch (getErrorCode(e)) {
-            case CHECK_VIOLATION: return BAD_PARAMS; // TODO make sure
+            case CHECK_VIOLATION: return BAD_PARAMS;
             case NOT_NULL_VIOLATION: return BAD_PARAMS;
             case FOREIGN_KEY_VIOLATION: return NOT_EXISTS;
             case UNIQUE_VIOLATION: return ALREADY_EXISTS;
@@ -882,7 +871,7 @@ public class Solution {
 
     private static void handleException(SQLException e) {
         // TODO comment out
-        e.printStackTrace();
+        //e.printStackTrace();
     }
 
     /**
@@ -986,17 +975,6 @@ public class Solution {
             createQueries(connection, stmts);
             closeConnection(connection);
         }
-    }
-
-    /**
-     * Opens a connection and drops a single table
-     */
-    private static void dropTable(String table) {
-        // TODO add drop to views
-        // TODO CASCADE?
-
-        String stmt = String.format("DROP TABLE IF EXISTS %s CASCADE", table);
-        createQueryAndConnection(stmt);
     }
 
     private static ReturnValue removeEntryFromTable(String table, int id) {
